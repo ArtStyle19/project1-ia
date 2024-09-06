@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>DFS</title>
+        <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #000; 
+            color: #fff; 
+        }
+
+        svg {
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #444; 
+        }
+
+        .puzzle-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* 3 columnas */
+            gap: 5px;
+            background-color: #222; 
+            padding: 10px;
+            border-radius: 8px; 
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6); /* Sombra */
+        }
+
+        .puzzle-img {
+            width: 80px; 
+            height: 80px;
+            object-fit: cover; /* Ajusta la imagen sin distorsion */
+            border-radius: 4px; 
+            border: 2px solid #444; /* Borde en la imagen */
+        }
+
+        .card {
+            position: absolute;
+            padding: 20px;
+            border: 1px solid #555; 
+            background: #333; 
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.7); /* Shadow for card */
+            color: #fff; /* White text color for card */
+            display: none;
+            max-width: 300px;
+            z-index: 1000;
+            border-radius: 8px; /* Rounded corners for card */
+        }
+
+        .node {
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+
+        .start-state {
+            fill: #ff6347; 
+        }
+
+        .goal-state {
+            fill: #4682b4; 
+        }
+
+        .other-state {
+            fill: #0000ff;
+        }
+
+        .edge {
+            stroke: #00ff00;
+            stroke-width: .6px;
+        }
+
+        .path-edge {
+            stroke: #ff0000; 
+            stroke-width: 3px;
+        }
+
+        .label {
+            font-size: 12px;
+            fill: #fff; 
+        }
+        </style>
+    </head>
+    <body>
+        <svg width="1400" height="1000"></svg>
+        <div id="card" class="card"></div>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script>
+        const svg = d3.select("svg");
+        const estadoObjetivo = [
+            [1, 2, 3],
+            [4, 5, 6],
+            [7, 8, 0]
+        ];
+
+        const estadoInicial = {
+            puzzle: [
+                [4, 1, 3],
+                [0, 2, 6],
+                [7, 5, 8]
+            ], 
+            x: 0,
+            y: 0,
+            radio: 20,
+            color: "steelblue",
+            contenido: `Estado inicial :\n1 8 2\n- 4 3\n7 6 5`
+        };
+
+        function moverEspacio(puzzle, posicionEspacio, movimiento) {
+            const nuevoPuzzle = puzzle.map(row => row.slice());
+            const [yEspacio, xEspacio] = posicionEspacio;
+            const nuevaXEspacio = xEspacio + movimiento.dx;
+            const nuevaYEspacio = yEspacio + movimiento.dy;
+
+            if (nuevaXEspacio < 0 || nuevaXEspacio >= 3 || nuevaYEspacio < 0 || nuevaYEspacio >= 3) {
+                return null;
+            }
+
+            [nuevoPuzzle[yEspacio][xEspacio], nuevoPuzzle[nuevaYEspacio][nuevaXEspacio]] =
+                [nuevoPuzzle[nuevaYEspacio][nuevaXEspacio], nuevoPuzzle[yEspacio][xEspacio]];
+
+            return nuevoPuzzle;
+        }
+
+        function obtenerPosiblesEstados(estado) {
+            const movimientos = [
+                { dx: 0, dy: -1, direction: 'Up' },
+                { dx: 1, dy: 0, direction: 'Right' },
+                { dx: 0, dy: 1, direction: 'Down' },
+                { dx: -1, dy: 0, direction: 'Left' }
+            ];
+
+            const posicionEspacio = encontrarPosicionEspacio(estado.puzzle);
+
+            return movimientos.map((movimiento) => {
+                const nuevoPuzzle = moverEspacio(estado.puzzle, posicionEspacio, movimiento);
+                if (nuevoPuzzle) {
+                    return {
+                        puzzle: nuevoPuzzle,
+                        content: `${movimiento.direction}:\n${formatPuzzle(nuevoPuzzle)}`,
+                        direction: movimiento.direction
+                    };
+                }
+                return null;
+            }).filter(estado => estado !== null);
+        }
+
+        function encontrarPosicionEspacio(puzzle) {
+            for (let y = 0; y < puzzle.length; y++) {
+                for (let x = 0; x < puzzle[y].length; x++) {
+                    if (puzzle[y][x] === 0) {
+                        return [y, x];
+                    }
+                }
+            }
+            return null;
+        }
+
+        function formatPuzzle(puzzle) {
+            return puzzle.map(row => row.map(num => num === 0 ? '-' : num).join(' ')).join('\n');
+        }
+
+        function dfs(startState, max_depth = 7) {
+            const frontier = [{ state: startState, path: [], step: 0 }];
+            const explored = new Set();
+            const stateToNode = new Map();
+            const parentMap = new Map(); 
+            const frontierHistory = [];
+            const exploredHistory = [];
+            const allStates = [];
+            let finalPath = [];
+
+            while (frontier.length > 0) {
+                const { state, path, step } = frontier.pop();
+                const puzzleString = JSON.stringify(state.puzzle);
+
+                frontierHistory.push(frontier.map(item => JSON.stringify(item.state.puzzle)));
+
+                if (!explored.has(puzzleString)) {
+                    explored.add(puzzleString);
+                    allStates.push({ ...state, step });
+                    exploredHistory.push(Array.from(explored));
+                }
+
+                if (step > max_depth) {
+                    continue;
+                }
+
+                if (arePuzzlesEqual(state.puzzle, estadoObjetivo)) {
+                    finalPath = [...path, state];
+                    break; 
+                }
+
+                const possibleStates = obtenerPosiblesEstados(state);
+                possibleStates.forEach((nextState) => {
+                    const nodeId = JSON.stringify(nextState.puzzle);
+
+                    // Add to frontier if not already explored or in the frontier
+                    if (!explored.has(nodeId) && !stateToNode.has(nodeId)) {
+                        frontier.push({ state: nextState, path: [...path, state], step: step + 1 });
+                        stateToNode.set(nodeId, nextState);
+                        parentMap.set(nodeId, state.puzzle); // Track parent
+                    }
+                });
+            }
+
+            return { finalPath, allStates, parentMap, frontierHistory, exploredHistory };
+        }
+
+        function arePuzzlesEqual(puzzle1, puzzle2) {
+            return JSON.stringify(puzzle1) === JSON.stringify(puzzle2);
+        }
+
+        function renderNodes(states, path, parentMap, frontierHistory, exploredHistory) {
+            const nodesData = [
+                { id: 'start', x: estadoInicial.x, y: estadoInicial.y, radius: estadoInicial.radio, content: estadoInicial.contenido, label: "Start State", step: 0 }
+            ];
+
+            states.forEach((state, index) => {
+                const [randomX, randomY] = getRandomPosition(1400, 1000);
+                nodesData.push({ id: `estado_${index}`, x: randomX, y: randomY, radius: estadoInicial.radio, content: state.content, label: `Paso ${index + 1}`, puzzle: state.puzzle, step: state.step });
+            });
+
+            const nodes = svg.selectAll("circle.node")
+            .data(nodesData, d => d.id)
+            .join(
+                enter => enter.append("circle")
+                    .attr("class", d => `node ${d.id === 'start' ? 'start-state' : (path.includes(d) ? 'goal-state' : 'other-state')}`)
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y)
+                    .attr("r", d => d.radius)
+
+
+
+
+
+                    .on("click", function(event, d) { onClick(event, d, frontierHistory, exploredHistory); }),
+                update => update
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y),
+                exit => exit.remove()
+            );
+
+            // Create or update labels
+            const labels = svg.selectAll("text.label")
+            .data(nodesData, d => d.id)
+            .join(
+                enter => enter.append("text")
+                    .attr("class", "label")
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y)
+                    .attr("dy", ".35em")
+                    .attr("text-anchor", "middle")
+                    .text(d => d.label),
+                update => update
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y)
+                    .text(d => d.label),
+                exit => exit.remove()
+            );
+
+            // Create or update edges for BFS tree
+            const treeEdges = [];
+            nodesData.forEach(node => {
+                const nodeId = JSON.stringify(node.puzzle);
+                if (parentMap.has(nodeId)) {
+                    const parentPuzzle = parentMap.get(nodeId);
+                    const parentNode = nodesData.find(d => arePuzzlesEqual(d.puzzle, parentPuzzle));
+                    if (parentNode) {
+                        treeEdges.push({ start: parentNode, end: node });
+                    }
+                }
+            });
+
+            svg.selectAll(".edge")
+                .data(treeEdges, d => `${d.start.id}-${d.end.id}`)
+                .join(
+                    enter => enter.append("line")
+                        .attr("class", "edge")
+                        .attr("x1", d => d.start.x)
+                        .attr("y1", d => d.start.y)
+                        .attr("x2", d => d.end.x)
+                        .attr("y2", d => d.end.y),
+                    update => update
+                        .attr("x1", d => d.start.x)
+                        .attr("y1", d => d.start.y)
+                        .attr("x2", d => d.end.x)
+                        .attr("y2", d => d.end.y),
+                    exit => exit.remove()
+                );
+
+            const pathEdges = [];
+            path.forEach((state, index) => {
+                if (index < path.length - 1) {
+                    const startNode = nodesData.find(node => arePuzzlesEqual(node.puzzle, state.puzzle));
+                    const endNode = nodesData.find(node => arePuzzlesEqual(node.puzzle, path[index + 1].puzzle));
+                    if (startNode && endNode) {
+                        pathEdges.push({ start: startNode, end: endNode });
+                    }
+                }
+            });
+
+            svg.selectAll(".path-edge")
+                .data(pathEdges, d => `${d.start.id}-${d.end.id}`)
+                .join(
+                    enter => enter.append("line")
+                        .attr("class", "path-edge")
+                        .attr("x1", d => d.start.x)
+                        .attr("y1", d => d.start.y)
+                        .attr("x2", d => d.end.x)
+                        .attr("y2", d => d.end.y),
+                    update => update
+                        .attr("x1", d => d.start.x)
+                        .attr("y1", d => d.start.y)
+                        .attr("x2", d => d.end.x)
+                        .attr("y2", d => d.end.y),
+                    exit => exit.remove()
+                );
+        }
+
+        function onClick(event, d, frontierHistory, exploredHistory) {
+            const card = d3.select("#card");
+            const frontierStates = frontierHistory[d.step] || [];
+            const exploredStates = exploredHistory[d.step] || [];
+            const move = d.step
+            const puzzleGrid = d.puzzle.flat().map(num => 
+                `<img src="${num}.jpg" alt="${num}" class="puzzle-img" />`
+            ).join('');
+
+            card.html(`
+<h3>Node Information</h3>
+<div class="puzzle-grid">
+${puzzleGrid}
+</div>
+<p><strong>Frontier Nodes:</strong></p>
+<pre>${formatNodes(frontierStates)}</pre>
+<p><strong>Explored Nodes:</strong></p>
+<pre>${formatNodes(exploredStates)}</pre>
+`)
+                .style("display", "block")
+                .style("left", `${event.pageX + 10}px`)
+                .style("top", `${event.pageY + 10}px`);
+        }
+
+        function formatNodes(nodes) {
+            return nodes.map(node => {
+                try {
+                    const parsedNode = JSON.parse(node);
+                    return formatPuzzle(parsedNode);
+                } catch (e) {
+                    console.error("Error parsing node:", node);
+                    return "Invalid node data";
+                }
+            }).join('\n\n');
+        }
+
+        function getRandomPosition(width, height) {
+            return [Math.random() * (width - 100), Math.random() * (height - 100)];
+        }
+
+        const { finalPath, allStates, parentMap, frontierHistory, exploredHistory } = dfs(estadoInicial);
+        renderNodes(allStates, finalPath, parentMap, frontierHistory, exploredHistory);
+
+        </script>
+    </body>
+</html>
